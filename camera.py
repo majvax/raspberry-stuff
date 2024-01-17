@@ -7,14 +7,33 @@ from threading import Condition
 from http import server
 
 
-PAGE= """ \
+
+# ------ CONFIGURATION ------
+
+# CAMERA
+FRAMERATE   = 60             # 60fps
+RESOLUTION  = '640x480'      # 640pixel par 480pixel
+ROTATION    = 180            # rotation de l'image de 180° pour avoir une image à l'endroit
+
+# SERVEUR
+IP          = ''             # adresse IP du serveur (laisser vide pour utiliser l'adresse IP de la raspberry)
+PORT        = 8000           # port utilisé par le serveur
+
+# HTML
+TITLE      = 'Spider Cam'   # titre de la page HTML
+
+
+# ---------------------------
+
+PAGE = \
+f"""
 <html>
 <head>
-<title>Spider Cam</title>
+    <title>{TITLE}</title>
 </head>
 <body>
-<center><h1>Spider Cam</h1></center>
-<center><img src="stream.mjpg" width="640" height="480"></center>
+    <center><h1>Spider Cam</h1></center>
+    <center><img src="stream.mjpg" width="640" height="480"></center>
 </body>
 </html>
 """
@@ -36,10 +55,13 @@ class StreamingOutput(object):
 
 class StreamingHandler(server.BaseHTTPRequestHandler):
     def do_GET(self):
+        # redirection de la page d'accueil
         if self.path == '/':
             self.send_response(301)
             self.send_header('Location', '/index.html')
             self.end_headers()
+
+        # affichage de la page HTML
         elif self.path == '/index.html':
             content = PAGE.encode('utf-8')
             self.send_response(200)
@@ -47,6 +69,8 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
             self.send_header('Content-Length', len(content))
             self.end_headers()
             self.wfile.write(content)
+
+        # affichage du flux vidéo
         elif self.path == '/stream.mjpg':
             self.send_response(200)
             self.send_header('Age', 0)
@@ -77,13 +101,18 @@ class StreamingServer(socketserver.ThreadingMixIn, server.HTTPServer):
     allow_reuse_address = True
     daemon_threads = True
 
-with picamera.PiCamera(resolution='640x480', framerate=60) as camera:
+with picamera.PiCamera(resolution=RESOLUTION, framerate=FRAMERATE) as camera:
+    # initialisation du flux vidéo
     output = StreamingOutput()
   
-    camera.rotation = 180
+    # configuration de la caméra
+    camera.rotation = ROTATION
+
+    # démarrage du flux vidéo
     camera.start_recording(output, format='mjpeg')
     try:
-        address = ('', 8000)
+        # démarrage du serveur
+        address = (IP, PORT)
         server = StreamingServer(address, StreamingHandler)
         server.serve_forever()
     finally:
